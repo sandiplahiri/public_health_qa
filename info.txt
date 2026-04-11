@@ -1,0 +1,69 @@
+Cloud Functions URL for scraping CDC data: https://us-central1-rag-healthcare-1.cloudfunctions.net/scrape-cdc
+Rag Webhook URL: url: https://us-central1-rag-healthcare-1.cloudfunctions.net/rag-webhook
+https://us-central1-rag-healthcare-1.cloudfunctions.net/scrape-cdc
+
+[BUCKET_NAME]=healthcare-use-case-1
+
+Vertext Index: public-health-index 
+[INDEX_ID] = 7079045086738120704
+
+Description = CDC information for flu.
+Dimensions = 768
+Approx. Neighbors Count = 150
+Fraction Leaf Nodes to Search = 0.05
+Leaf Nodes Embeddings Count = 1,000
+Distance Measure Type = Dot Product Distance
+Update Method = Stream
+Shard Size = Small
+Feature Norm Type = Unit L2 normalization
+
+Commands
+========
+a. cd to the public_health_qa directory
+b. Deploy rag_webhook: 
+   gcloud functions deploy rag-webhook \
+  --gen2 \
+  --runtime=python311 \
+  --region=us-central1 \
+  --source=./rag_webhook \
+  --entry-point=dialogflow_rag_webhook \
+  --trigger-http \
+  --allow-unauthenticated \
+  --memory=1024Mi \
+  --set-env-vars="INDEX_ENDPOINT_ID=1785697043461701632,INDEX_ENDPOINT_DOMAIN=1676906031.us-central1-211273875918.vdb.vertexai.goog,DEPLOYED_INDEX_ID=public_health_index_1755901296871,FIRESTORE_COLLECTION=health-chunks"
+
+c. Deploy process_and_embed: 
+   gcloud functions deploy process-and-embed \
+  --gen2 \
+  --runtime=python311 \
+  --region=us-central1 \
+  --source=./process_and_embed \
+  --entry-point=process_and_embed_gcs \
+  --trigger-bucket=healthcare-use-case-1 \
+  --trigger-location=us \
+  --memory=1024Mi \
+  --set-env-vars="INDEX_ID=7601744118489808896"
+
+  d. Deploy scrape-cdc
+   gcloud functions deploy scrape-cdc \
+   --gen2 \
+   --runtime=python311 \
+   --region=us-central1 \
+   --source=./scrape_cdc \
+   --entry-point=scrape_cdc_http \
+   --trigger-http \
+   --allow-unauthenticated \
+   --memory=1024Mi \
+   --set-env-vars="GCS_BUCKET_NAME=healthcare-use-case-1"
+
+   e. Setup scheduler to run every day at 8am: 
+   gcloud scheduler jobs create http trigger-cdc-scrape \
+  --location=us-central1 \
+  --schedule="0 8 * * *" \
+  --time-zone="America/New_York" \
+  --uri="[PASTE_THE_NEW_FUNCTION_URL_HERE]" \
+  --http-method=GET
+
+  f. Update scheduler:
+  gcloud scheduler jobs update http trigger-cdc-scrape \
+  --uri="[PASTE_THE_NEW_FUNCTION_URL_HERE]"

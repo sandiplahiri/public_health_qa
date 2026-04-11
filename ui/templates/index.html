@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Healthcare RAG Assistant</title>
+    
+    <link rel="stylesheet" href="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/themes/df-messenger-default.css">
+    <script src="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/df-messenger.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            line-height: 1.6;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #0056b3;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        h1 {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 2em;
+        }
+        h3 {
+            font-size: 1.5em;
+            border-bottom: none;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+        ul, ol {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .mermaid {
+            background-color: #ffffff;
+            text-align: center;
+            padding: 20px 0;
+        }
+        .journey {
+            background-color: #e6f7ff;
+            border-left: 5px solid #007bff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .journey h3 {
+            margin-top: 0;
+            color: #004085;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Healthcare RAG Assistant</h1>
+        <p>This project is a fully functional, end-to-end Retrieval-Augmented Generation (RAG) system built entirely on the Google Cloud Platform. 
+            It features a conversational AI agent, powered by Dialogflow CX and Google's Gemini models, that can answer user questions about public health topics 
+            (specifically, the <em>flu</em>) based on real, up-to-date information scraped from the Centers for Disease Control and Prevention (CDC) website.</p>
+        <p>The entire system is serverless, event-driven, and designed to be a low-cost, scalable solution for providing factual, AI-driven answers from a trusted knowledge base.</p>
+
+        <section id="features">
+            <h2>Features</h2>
+            <ul>
+                <li><strong>Conversational AI Interface:</strong> Users can interact with the assistant in natural language through a simple web chat widget.</li>
+                <li><strong>Automated Data Ingestion:</strong> A Cloud Scheduler job runs daily to trigger a web scraping function, ensuring the knowledge base stays current.</li>
+                <li><strong>Sophisticated RAG Pipeline:</strong>
+                    <ul>
+                        <li><strong>Retrieval:</strong> Uses Vertex AI Vector Search to find the most semantically relevant text chunks from the knowledge base.</li>
+                        <li><strong>Augmentation:</strong> Retrieves the full text of relevant chunks from a Firestore database.</li>
+                        <li><strong>Generation:</strong> Uses the powerful Gemini 2.5 Flash model to synthesize a helpful, conversational answer based <em>only</em> on the retrieved factual context.</li>
+                    </ul>
+                </li>
+                <li><strong>De-duplication Logic:</strong> The data pipeline intelligently overwrites existing data, preventing the accumulation of duplicate information from daily scrapes.</li>
+                <li><strong>Production-Ready Publishing:</strong> The Dialogflow agent is configured with separate "Draft" and "Production" environments, following best practices for safe deployment and testing.</li>
+            </ul>
+        </section>
+
+        <section id="architecture">
+            <h2>Architecture</h2>
+            <p>The project is composed of two main asynchronous workflows: a daily data ingestion pipeline and a real-time query pipeline.</p>
+            <div class="mermaid">
+                flowchart TD
+                    subgraph "Daily Data Ingestion & Processing Pipeline (Automated)"
+                        A[Cloud Scheduler] --triggers daily--> B(scrape-cdc Cloud Function);
+                        B --scrapes & writes .txt file--> C[Cloud Storage Bucket];
+                        C --triggers on file creation--> D(process-and-embed Cloud Function);
+                        D --chunks text, gets embeddings--> E{Vertex AI Embedding API};
+                        D --writes text chunks--> F[Firestore Database];
+                        D --writes vectors--> G[Vertex AI Vector Search Index];
+                    end
+
+                    subgraph "Real-time RAG Query Pipeline (User Interaction)"
+                        H[User] --asks question--> I(Dialogflow Messenger);
+                        I --sends query--> J[Dialogflow CX Agent];
+                        J --matches intent & calls webhook--> K(rag-webhook Cloud Function);
+                        K --1. embeds query--> E;
+                        K --2. queries for neighbors--> G;
+                        G --returns vector IDs--> K;
+                        K --3. looks up IDs--> F;
+                        F --returns text chunks--> K;
+                        K --4. builds prompt & calls--> L{Gemini 2.5 Flash API};
+                        L --returns generated answer--> K;
+                        K --sends response--> J;
+                        J --displays answer--> I;
+                        I --shows to--> H;
+                    end
+            </div>
+        </section>
+
+        <section id="tech-stack">
+            <h2>Technology Stack</h2>
+            <h3>Google Cloud Platform Services</h3>
+            <ul>
+                <li><strong>Compute:</strong> Google Cloud Functions (Gen 2)</li>
+                <li><strong>AI / ML:</strong> Vertex AI (Vector Search, Embedding API, Gemini 2.5 Flash)</li>
+                <li><strong>Conversational AI:</strong> Dialogflow CX</li>
+                <li><strong>Storage:</strong> Google Cloud Storage, Firestore</li>
+                <li><strong>Automation & Ops:</strong> Cloud Scheduler, Cloud Build, Cloud Run, IAM, Cloud Logging</li>
+            </ul>
+            <h3>Key Python Libraries</h3>
+            <ul>
+                <li><code>functions-framework</code></li>
+                <li><code>google-cloud-firestore</code></li>
+                <li><code>google-cloud-storage</code></li>
+                <li><code>google-auth</code></li>
+                <li><code>requests</code></li>
+                <li><code>beautifulsoup4</code></li>
+            </ul>
+        </section>
+
+        <section class="journey">
+            <h3>The Journey: A Note on Real-World Implementation</h3>
+            <p>Built and stabilized a modern cloud stack on a bleeding-edge platform by systematically uncovering and fixing deep, often undocumented issues, for example, stubborn container start-up 
+                failures, non-intuitive console navigation for setting up workflows, persistent agent misbehaviors and API endpoints failures. 
+                The work highlights a persistent, methodical, and deeply technical approach to cloud engineering and debugging.</p>
+        </section>
+
+        <section id="future-improvements">
+            <h2>Future Improvements</h2>
+            <ul>
+                <li>Incorporate more data sources (e.g., from the WHO) to enrich the knowledge base.</li>
+                <li>Implement a content-hashing strategy in the scraper to only trigger the processing pipeline when source documents have actually changed.</li>
+                <li>Add conversation history to allow for follow-up questions.</li>
+                <li>Stream responses from Gemini for a more interactive user experience.</li>
+            </ul>
+        </section>
+    </div>
+
+    <df-messenger
+      location="us-central1"
+      project-id="rag-healthcare-1"
+      agent-id="391fe405-9f8f-4e4b-9bf6-2c7899d70c0d"
+      language-code="en"
+      max-query-length="-1"
+      environment-id="prod">
+      <df-messenger-chat
+        chat-title="Flu RAG Assistant">
+      </df-messenger-chat>
+    </df-messenger>
+    <style>
+      df-messenger {
+        z-index: 999;
+        position: fixed;
+        --df-messenger-font-color: #000;
+        --df-messenger-font-family: Google Sans;
+        --df-messenger-chat-background: #f3f6fc;
+        --df-messenger-message-user-background: #d3e3fd;
+        --df-messenger-message-bot-background: #fff;
+        bottom: 0;
+        right: 0;
+        top: 0;
+        width: 350px;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true /*, securityLevel: 'loose' */});
+</script>
+</body>
+</html>
