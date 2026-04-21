@@ -4,14 +4,18 @@ import requests
 from bs4 import BeautifulSoup
 from google.cloud import storage
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Environment variable for the bucket name
 BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 
-# List of URLs to scrape
+# List of URLs to scrape - loaded from environment
 URL_LIST = {
-    "keyfacts": "https://www.cdc.gov/flu/about/?CDC_AAref_Val=https://www.cdc.gov/flu/about/keyfacts.htm",
-    "prevention": "https://www.cdc.gov/flu/prevention/?CDC_AAref_Val=https://www.cdc.gov/flu/prevent/prevention.htm"
+    "keyfacts": os.environ.get("CDC_KEYFACTS_URL"),
+    "prevention": os.environ.get("CDC_PREVENTION_URL")
 }
 
 @functions_framework.http
@@ -29,9 +33,10 @@ def scrape_cdc_http(request):
     # --- END INITIALIZATION ---
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': os.environ.get('USER_AGENT'),
     }
     
+    blob_prefix = os.environ.get('CDC_BLOB_PREFIX', 'cdc-flu-')
     successful_scrapes = []
     failed_scrapes = []
 
@@ -45,7 +50,7 @@ def scrape_cdc_http(request):
             text_content = main_content.get_text(separator='\n', strip=True) if main_content else soup.body.get_text(separator='\n', strip=True)
 
             bucket = storage_client.bucket(BUCKET_NAME)
-            blob_name = f"cdc-flu-{name}.txt" # Use stable filename
+            blob_name = f"{blob_prefix}{name}.txt" # Use stable filename
             blob = bucket.blob(blob_name)
             blob.upload_from_string(text_content, content_type="text/plain")
             

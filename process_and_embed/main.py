@@ -7,9 +7,22 @@ import requests
 import os
 import re
 import json
+from dotenv import load_dotenv
 
-def chunk_text(text, chunk_size=1500, chunk_overlap=150):
+# Load environment variables from .env file
+load_dotenv()
+
+# Configuration from environment variables
+CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "1500"))
+CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP", "150"))
+
+def chunk_text(text, chunk_size=None, chunk_overlap=None):
     """Splits text into fixed-size, overlapping chunks."""
+    if chunk_size is None:
+        chunk_size = CHUNK_SIZE
+    if chunk_overlap is None:
+        chunk_overlap = CHUNK_OVERLAP
+    
     if not text:
         return []
     
@@ -34,9 +47,9 @@ def chunk_text(text, chunk_size=1500, chunk_overlap=150):
 @functions_framework.cloud_event
 def process_and_embed_gcs(cloud_event):
     PROJECT_ID = os.environ.get("GCLOUD_PROJECT")
-    REGION = "us-central1"
+    REGION = os.environ.get("REGION", "us-central1")
     INDEX_ID = os.environ.get("INDEX_ID")
-    FIRESTORE_COLLECTION = "health-chunks"
+    FIRESTORE_COLLECTION = os.environ.get("FIRESTORE_COLLECTION", "health-chunks")
 
     credentials, project_id_from_auth = google.auth.default()
     if not PROJECT_ID: PROJECT_ID = project_id_from_auth
@@ -65,7 +78,7 @@ def process_and_embed_gcs(cloud_event):
     
     # Handle API limits by sending chunks in batches
     all_embeddings = []
-    batch_size = 5 # The API has a limit on instances per request
+    batch_size = int(os.environ.get("EMBEDDING_BATCH_SIZE", "5")) # The API has a limit on instances per request
     for i in range(0, len(chunks), batch_size):
         batch_chunks = chunks[i:i + batch_size]
         instances = [{"content": chunk} for chunk in batch_chunks]

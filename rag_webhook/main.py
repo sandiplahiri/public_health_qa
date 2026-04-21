@@ -5,22 +5,22 @@ import google.auth.transport.requests
 import requests
 import os
 import json
-import os, json, requests, functools
-from typing import Dict, List, Tuple, Any
-from google.auth.transport.requests import Request as GARequest
-import json, traceback, requests
-from google.cloud import firestore
 import traceback
+from typing import Dict, List, Tuple, Any
+from google.cloud import firestore
+from dotenv import load_dotenv
 
-
+# Load environment variables from .env file
+load_dotenv()
 
 PROJECT_ID         = os.environ.get("PROJECT_ID", "rag-healthcare-1")
 REGION             = os.environ.get("REGION", "us-central1")
-INDEX_ENDPOINT_ID  = os.environ.get("INDEX_ENDPOINT_ID", "")    # 1785697043461701632
-DEPLOYED_INDEX_ID     = os.environ.get("DEPLOYED_INDEX_ID", "")    # "public_health_index_1755901296871"    
-INDEX_ENDPOINT_DOMAIN = os.environ.get("INDEX_ENDPOINT_DOMAIN", "")  # "1676906031.us-central1-211273875918.vdb.vertexai.goog"
-TIMEOUT_SEC           = int(os.environ.get("TIMEOUT_SEC", "20"))
-FIRESTORE_COLLECTION  = os.environ.get("FIRESTORE_COLLECTION", "") # "health-chunks"
+INDEX_ENDPOINT_ID  = os.environ.get("INDEX_ENDPOINT_ID", "")
+DEPLOYED_INDEX_ID  = os.environ.get("DEPLOYED_INDEX_ID", "")
+INDEX_ENDPOINT_DOMAIN = os.environ.get("INDEX_ENDPOINT_DOMAIN", "")
+TIMEOUT_SEC        = int(os.environ.get("TIMEOUT_SEC", "20"))
+FIRESTORE_COLLECTION = os.environ.get("FIRESTORE_COLLECTION", "health-chunks")
+NEIGHBOR_COUNT     = int(os.environ.get("NEIGHBOR_COUNT", "3"))
 
 
 @functions_framework.http
@@ -32,8 +32,7 @@ def dialogflow_rag_webhook(request):
         return build_dialogflow_response("I'm sorry, I didn't understand the question.")
     
     try:
-        PROJECT_ID = os.environ.get("GCLOUD_PROJECT")
-        REGION = "us-central1"
+        project_id = os.environ.get("GCLOUD_PROJECT") or PROJECT_ID
         
         db = firestore.Client()
 
@@ -41,8 +40,8 @@ def dialogflow_rag_webhook(request):
         auth_req = google.auth.transport.requests.Request()
         credentials.refresh(auth_req)
         token = credentials.token
-        if not PROJECT_ID:
-            PROJECT_ID = project_id_from_auth
+        if not project_id:
+            project_id = project_id_from_auth
         
         headers = {
             "Authorization": f"Bearer {token}",
@@ -50,16 +49,16 @@ def dialogflow_rag_webhook(request):
         }
 
         # 1. Embed the user's query (this uses the standard AI Platform host)
-        embedding_url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/text-embedding-004:predict"
+        embedding_url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{REGION}/publishers/google/models/text-embedding-004:predict"
         response = requests.post(embedding_url, headers=headers, json={"instances": [{"content": user_query}]})
         response.raise_for_status()
         query_embedding = response.json()['predictions'][0]['embeddings']['values']
 
         # 2. Query Vector Search to find neighbor IDs
-        find_neighbors_url = f"https://{INDEX_ENDPOINT_DOMAIN}/v1/projects/{PROJECT_ID}/locations/{REGION}/indexEndpoints/{INDEX_ENDPOINT_ID}:findNeighbors"
+        find_neighbors_url = f"https://{INDEX_ENDPOINT_DOMAIN}/v1/projects/{project_id}/locations/{REGION}/indexEndpoints/{INDEX_ENDPOINT_ID}:findNeighbors"
         query_payload = {
             "deployedIndexId": DEPLOYED_INDEX_ID,
-            "queries": [{"neighborCount": 3, "datapoint": {"featureVector": query_embedding}}]
+            "queries": [{"neighborCount": NEIGHBOR_COUNT, "datapoint": {"featureVector": query_embedding}}]
         }
         response = requests.post(find_neighbors_url, headers=headers, json=query_payload)
         response.raise_for_status()
@@ -87,7 +86,7 @@ def dialogflow_rag_webhook(request):
 
         # 4. Call Gemini with the clean, de-duplicated context
         prompt = f"Using the following context, answer the user's question.\nContext: {context}\nQuestion: {user_query}"
-        gemini_url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/gemini-2.5-flash:generateContent"
+        gemini_url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{REGION}/publishers/google/models/gemini-2.5-flash:generateContent"
         gemini_payload = { "contents": [{
             "role": "user",
             "parts": [{"text": prompt}]

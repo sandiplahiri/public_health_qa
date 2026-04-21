@@ -1,6 +1,6 @@
-*************************************************************
-** NOTE: All GCP resources in this file have been deleted. **
-*************************************************************
+*****************************************************************************
+** NOTE: All GCP resources in this file are for illustrative purposes only **
+*****************************************************************************
 
 Cloud Functions URL for scraping CDC data: https://us-central1-rag-healthcare-1.cloudfunctions.net/scrape-cdc
 Rag Webhook URL: url: https://us-central1-rag-healthcare-1.cloudfunctions.net/rag-webhook
