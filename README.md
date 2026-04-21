@@ -17,7 +17,7 @@ The entire system is serverless, event-driven, and designed to be a low-cost, sc
 
 ## Chatbot UI
 <p align="center">
-  <img src="./chatbot.png" alt="diagram" width="360">
+  <img src="./doc/chatbot.png" alt="diagram" width="360">
 </p>
 
 ## Architecture
